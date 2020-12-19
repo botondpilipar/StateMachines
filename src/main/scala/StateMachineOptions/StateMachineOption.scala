@@ -1,0 +1,5 @@
+package StateMachineOptions
+
+trait StateMachineOption {
+
+}

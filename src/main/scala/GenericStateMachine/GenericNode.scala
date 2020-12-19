@@ -1,8 +1,13 @@
 package GenericStateMachine
 
 trait GenericNode[EnumId, InnerState] {
-  def canTransition(innerState: InnerState): Boolean
+  def canTransition(): Boolean
+
   def alter(f: InnerState => InnerState): Option[GenericNode[EnumId, InnerState]]
+
   def getState(): InnerState
-  def transitionTo(): Option[EnumId]
+
+  def getId(): EnumId
+
+  def isValid(): Boolean
 }
