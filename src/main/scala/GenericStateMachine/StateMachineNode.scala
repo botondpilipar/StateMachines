@@ -25,11 +25,11 @@ case class StateMachineNode[EnumId, InnerState](id: EnumId,
     override def isValid(): Boolean = commonInvariant(state)
   }
 
-object StateMachineNode {
-  def apply[EnumId, InnerState](id: EnumId,
-                                state: InnerState,
-                                guard: InnerState => Boolean,
-                                commonInvariant: InnerState => Boolean): GenericNode[EnumId, InnerState] =
-    StateMachineNode(id, state, guard, commonInvariant)
-}
+//object StateMachineNode {
+//  def apply[EnumId, InnerState](id: EnumId,
+//                                state: InnerState,
+//                                guard: InnerState => Boolean,
+//                                commonInvariant: InnerState => Boolean): GenericNode[EnumId, InnerState] =
+//    return StateMachineNode(id, state, guard, commonInvariant)
+//}
 
