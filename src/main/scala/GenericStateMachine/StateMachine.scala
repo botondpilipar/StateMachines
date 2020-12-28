@@ -2,62 +2,87 @@ package GenericStateMachine
 import StateMachineOptions._
 
 case class StateMachine[EnumId, InnerState](machineSettings: StateMachineSettings,
-                                                    nodes: Set[GenericNode[EnumId, InnerState]],
-                                                    currentState: GenericNode[EnumId, InnerState],
-                                                    transitionCallback: EnumId => Unit,
-                                                    possibleTransitions: Map[EnumId, (EnumId, InnerState) => EnumId] = Map())
+                                            nodes: Set[StateMachineNode[EnumId, InnerState]],
+                                            currentNode: GenericNode[EnumId, InnerState],
+                                            transitionCallback: EnumId => Unit,
+                                            possibleTransitions: Map[EnumId, List[InnerState => Option[EnumId]]] = Map())
 extends GenericStateMachine[EnumId, InnerState] {
 
-  override def getCurrentState(): Option[EnumId] = {
-    if(currentState.isValid()) {
-      return Some(currentState.getId())
+  override def getCurrentId(): Option[EnumId] = {
+    if(currentNode.isValid()) {
+      Some(currentNode.getId())
     } else {
-      return None
+      None
+    }
+  }
+
+  override def getCurrentState(): Option[InnerState] = {
+    if(currentNode.isValid()) {
+      Some(currentNode.getState())
+    } else {
+      None
     }
   }
 
   override def flatMap[Id, Inner](f: GenericNode[EnumId, InnerState] => GenericStateMachine[Id, Inner])
     : Option[GenericStateMachine[Id, Inner]] = {
-    if(currentState.canTransition()) {
-      Some(f(currentState))
+    if(currentNode.canTransition()) {
+      Some(f(currentNode))
     } else {
       None
     }
   }
 
   override def map(f: InnerState => InnerState): Option[GenericStateMachine[EnumId, InnerState]] = {
-    val altered = currentState.alter(f)
-    if(altered.nonEmpty && machineSettings.transitionOption == ManualTransition) {
+    val altered = currentNode.alter(f)
 
-      Some(StateMachine(machineSettings, nodes, altered.get, transitionCallback,  possibleTransitions))
+    (altered, machineSettings) match {
+      case (Some(StateMachineNode(id, state, guard, commonInvariant)),
+            StateMachineSettings(ManualTransition, _, preserveStateOnTransition)) => {
+        val newNode = StateMachineNode[EnumId, InnerState](id, state, guard, commonInvariant)
+        Some(StateMachine(machineSettings, nodes, newNode, transitionCallback, possibleTransitions))
+      }
 
-    } else if (altered.nonEmpty && machineSettings.transitionOption == AutomaticTransition) {
+      case (Some(StateMachineNode(id, state, _, _)),
+            StateMachineSettings(AutomaticTransition, selectionOption, preserveStateOnTransition)) => {
+        val newId = TransitionSelector.select(possibleTransitions.get(id).get, selectionOption,state)
+        val transitionNode = nodes.find(n => n.getId() == newId)
 
-      val id = altered.get.getId()
-      val state = altered.get.getState()
-      val transitionFunction = possibleTransitions.get(id).get
-      transitionCallback(transitionFunction(id, state))
-      transition(transitionFunction)
+        transitionNode match {
+          case Some(newNode @ StateMachineNode(id, state, guard, commonInvariant)) => {
+            transitionCallback(id)
+            val currentState = currentNode.getState()
+            val newInitialState: InnerState = if (preserveStateOnTransition) currentState else state
+            val newNode = StateMachineNode(id, newInitialState, guard, commonInvariant)
+            Some(StateMachine(machineSettings, nodes, newNode, transitionCallback, possibleTransitions))
+          }
+
+          case _ => None
+        }
+      }
+
+      case (_, _) => None
+    }
+  }
+
+  override def transition(f: (EnumId, InnerState) => Option[EnumId]): Option[GenericStateMachine[EnumId, InnerState]] = {
+    if(currentNode.canTransition()) {
+      val transitionNode = f(currentNode.getId(), currentNode.getState())
+        .flatMap(id => nodes.find(node => node.getId() == id))
+
+      (transitionNode, machineSettings) match {
+        case (Some(StateMachineNode(id, state, guard, commonInvariant)),
+              StateMachineSettings(_, _, preserveStateOnTransition)) => {
+          transitionCallback(id)
+          val newState = if (preserveStateOnTransition) currentNode.getState() else state
+          val newNode = StateMachineNode(id, newState, guard, commonInvariant)
+          Some(StateMachine(machineSettings, nodes,  newNode, transitionCallback, possibleTransitions))
+        }
+
+        case (_, _) => None
+      }
     } else {
       None
     }
   }
-
-  override def transition(f: (EnumId, InnerState) => EnumId): Option[GenericStateMachine[EnumId, InnerState]] = {
-    if(currentState.canTransition()) {
-      val newId = f(currentState.getId(), currentState.getState())
-      transitionCallback(newId)
-      Some(StateMachine(machineSettings, nodes,  nodes.find(node => node.getId() == newId).get, transitionCallback, possibleTransitions))
-    } else {
-      None
-    }
-  }
-}
-
-object StateMachine {
-  def apply[EnumId, InnerState](machineSettings: StateMachineSettings,
-                                nodes: Set[GenericNode[EnumId, InnerState]],
-                                transitionCallback: Unit => Unit,
-                                first: GenericNode[EnumId, InnerState]): GenericStateMachine[EnumId, InnerState] =
-    StateMachine[EnumId, InnerState](machineSettings, nodes, transitionCallback, first)
 }
