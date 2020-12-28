@@ -4,10 +4,7 @@ import matchers._
 
 import GenericStateMachine._
 
-sealed trait EnumIdExample {}
-case object EnumIdFirst extends EnumIdExample
-case object EnumIdSecond extends EnumIdExample
-case object EnumIdThird extends EnumIdExample
+
 
 class StateMachineNodeTest extends AnyFlatSpec {
   val constTrueInt: (Int => Boolean) = (_ => true)
