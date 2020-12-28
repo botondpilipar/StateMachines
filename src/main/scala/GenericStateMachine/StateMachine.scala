@@ -3,9 +3,8 @@ import StateMachineOptions._
 
 case class StateMachine[EnumId, InnerState](machineSettings: StateMachineSettings,
                                                     nodes: Set[GenericNode[EnumId, InnerState]],
-                                                    commonInvariant: InnerState => Boolean,
-                                                    transitionCallback: EnumId => Unit,
                                                     currentState: GenericNode[EnumId, InnerState],
+                                                    transitionCallback: EnumId => Unit,
                                                     possibleTransitions: Map[EnumId, (EnumId, InnerState) => EnumId] = Map())
 extends GenericStateMachine[EnumId, InnerState] {
 
@@ -26,11 +25,11 @@ extends GenericStateMachine[EnumId, InnerState] {
     }
   }
 
-  override def mapInner(f: InnerState => InnerState): Option[GenericStateMachine[EnumId, InnerState]] = {
+  override def map(f: InnerState => InnerState): Option[GenericStateMachine[EnumId, InnerState]] = {
     val altered = currentState.alter(f)
     if(altered.nonEmpty && machineSettings.transitionOption == ManualTransition) {
 
-      Some(StateMachine(machineSettings, nodes, commonInvariant, transitionCallback, altered.get))
+      Some(StateMachine(machineSettings, nodes, altered.get, transitionCallback,  possibleTransitions))
 
     } else if (altered.nonEmpty && machineSettings.transitionOption == AutomaticTransition) {
 
@@ -48,7 +47,7 @@ extends GenericStateMachine[EnumId, InnerState] {
     if(currentState.canTransition()) {
       val newId = f(currentState.getId(), currentState.getState())
       transitionCallback(newId)
-      Some(StateMachine(machineSettings, nodes, commonInvariant, transitionCallback, nodes.find(node => node.getId() == newId).get))
+      Some(StateMachine(machineSettings, nodes,  nodes.find(node => node.getId() == newId).get, transitionCallback, possibleTransitions))
     } else {
       None
     }
@@ -56,8 +55,9 @@ extends GenericStateMachine[EnumId, InnerState] {
 }
 
 object StateMachine {
-  def apply[EnumId, InnerState](nodes: Set[GenericNode[EnumId, InnerState]],
-                                commonInvariant: InnerState => Boolean,
-                                transitionCallback: Unit => Unit): GenericStateMachine[EnumId, InnerState] =
-    StateMachine[EnumId, InnerState](nodes, commonInvariant, transitionCallback)
+  def apply[EnumId, InnerState](machineSettings: StateMachineSettings,
+                                nodes: Set[GenericNode[EnumId, InnerState]],
+                                transitionCallback: Unit => Unit,
+                                first: GenericNode[EnumId, InnerState]): GenericStateMachine[EnumId, InnerState] =
+    StateMachine[EnumId, InnerState](machineSettings, nodes, transitionCallback, first)
 }
